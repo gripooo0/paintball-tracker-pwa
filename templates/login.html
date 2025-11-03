@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+  <body>
+    <h2>Login</h2>
+    <form id="form">
+      <label>Username: <input name="username" /></label><br>
+      <label>Password: <input name="password" type="password"/></label><br>
+      <button>Login</button>
+    </form>
+    <p>After successful login the server returns JSON with access_token. Copy it to browser console to store it.</p>
+
+    <script>
+      document.getElementById('form').onsubmit = async (e)=>{
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const resp = await fetch('/token', {method:'POST', body:fd});
+        if(!resp.ok){ alert('Login failed'); return; }
+        const j = await resp.json();
+        console.log('token:', j.access_token);
+        localStorage.setItem('token', j.access_token);
+        alert('Token saved to localStorage. Go to / to start sharing.');
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Paintball Tracker</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>body{font-family:Arial;padding:10px} #map{height:60vh;max-height:600px;border:1px solid #ccc}</style>
+  </head>
+  <body>
+    <h2>Paintball Tracker — Share Location</h2>
+    <p><a href="/register">Register</a> — <a href="/login">Login</a></p>
+    <p><strong>Notes:</strong> Use this only with consenting participants.</p>
+    <div id="controls">
+      <button id="start">Start sharing</button>
+      <button id="stop" disabled>Stop sharing</button>
+    </div>
+    <div id="map"></div>
+
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw.js').then(()=>console.log('SW registered'));
+      }
+      let token = localStorage.getItem('token') || null;
+      if(!token){
+        // don't force, but notify
+        console.log('No token in localStorage. Log in at /login first.');
+      }
+      let map = L.map('map').setView([52.2297, 21.0122], 13);
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles © Esri'
+      }).addTo(map);
+
+      let marker;
+      let ws;
+      document.getElementById('start').onclick = async function(){
+        if(!token){ alert('No token found. Log in first.'); return; }
+        if(!navigator.geolocation){ alert('Geolocation API not available'); return; }
+        ws = new WebSocket(`ws://${location.host}/ws/user/${token}`);
+        ws.onopen = function(){ console.log('ws open'); }
+        ws.onmessage = function(ev){ console.log('server:', ev.data); }
+        const sendPos = pos => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          if(!marker) marker = L.marker([lat, lon]).addTo(map);
+          else marker.setLatLng([lat, lon]);
+          map.setView([lat, lon], 16);
+          if(ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({lat, lon}));
+        }
+        watchId = navigator.geolocation.watchPosition(sendPos, err => alert('Error getting location: '+err.message), {enableHighAccuracy:true});
+        document.getElementById('start').disabled = true;
+        document.getElementById('stop').disabled = false;
+      }
+      document.getElementById('stop').onclick = function(){
+        if(window.watchId) navigator.geolocation.clearWatch(window.watchId);
+        if(ws) ws.close();
+        document.getElementById('start').disabled = false;
+        document.getElementById('stop').disabled = true;
+      }
+    </script>
+  </body>
+</html>

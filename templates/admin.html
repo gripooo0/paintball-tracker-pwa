@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Admin — Paintball Tracker</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>body{font-family:Arial;padding:10px} #map{height:80vh;max-height:900px;border:1px solid #ccc}</style>
+  </head>
+  <body>
+    <h2>Admin panel (admin1 / admin123)</h2>
+    <p>Login at <a href="/login">/login</a>, copy token to localStorage, then open this page.</p>
+    <div id="map"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw.js').then(()=>console.log('SW registered'));
+      }
+      let token = localStorage.getItem('token');
+      if(!token){ alert('Please login at /login as admin1/admin123 and set token in localStorage.'); }
+      let map = L.map('map').setView([52.2297,21.0122], 5);
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles © Esri'
+      }).addTo(map);
+
+      const markers = {}; // username -> marker
+
+      const connect = ()=>{
+        const ws = new WebSocket(`ws://${location.host}/ws/admin/${token}`);
+        ws.onopen = ()=>console.log('admin ws open');
+        ws.onmessage = ev => {
+          const data = JSON.parse(ev.data);
+          if(data.type === 'initial'){
+            const latest = data.latest;
+            for(const [user, val] of Object.entries(latest)){
+              addOrUpdate(user, val.lat, val.lon);
+            }
+          } else if(data.type === 'update'){
+            addOrUpdate(data.username, data.lat, data.lon);
+          }
+        }
+        ws.onclose = ()=> setTimeout(connect, 2000);
+      }
+
+      function addOrUpdate(user, lat, lon){
+        if(markers[user]) markers[user].setLatLng([lat, lon]);
+        else markers[user] = L.marker([lat, lon]).addTo(map).bindPopup(user);
+      }
+
+      connect();
+    </script>
+  </body>
+</html>
